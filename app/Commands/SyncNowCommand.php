@@ -30,13 +30,17 @@ class SyncNowCommand extends Command
     public function handle()
     {
         $sync = new SyncPartsDbService();
-        $sync->run();
+        $result = $sync->run();
+
+        $this->info('Sync Init Id   : ' . $result['init_sync_id']);
+        $this->info('Sync End Id    : ' . $result['end_sync_id']);
+        $this->info('Sync complete!');
     }
 
     /**
      * Define the command's schedule.
      *
-     * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
+     * @param Schedule $schedule
      * @return void
      */
     public function schedule(Schedule $schedule): void

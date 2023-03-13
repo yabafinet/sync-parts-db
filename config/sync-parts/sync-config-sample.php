@@ -6,11 +6,30 @@ return [
     'type' => 'sync-tables',
     'name' => 'Sync sales samples.',
     'connections' =>[
-        'db-A' => 'mysqlA:table_A',
-        'db-B' => 'mysqlB:table_B',
+        'db-A' => [
+            'driver' => 'mysql',
+            'host' => '127.0.0.1',
+            'port' => 3306,
+            'database' => 'sync-parts-db-A',
+            'table' => 'table_A',
+            'username' => 'root',
+            'password' => 'lared2001',
+        ],
+        'db-B' => [
+            'driver' => 'mysql',
+            'host' => '127.0.0.1',
+            'port' => 3306,
+            'database' => 'sync-parts-db-B',
+            'table' => 'table_B',
+            'username' => 'root',
+            'password' => 'lared2001',
+        ],
     ],
+
+    /**
+     * db-A (select) => db-B (insert)
+     */
     'structure' => [
-        /* db-A => db-B */
         'id' => 'id',
         'name' => 'name_b',
         'note' => 'note_b',

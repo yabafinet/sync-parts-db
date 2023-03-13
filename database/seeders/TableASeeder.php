@@ -16,7 +16,7 @@ class TableASeeder extends Seeder
     public function run(): void
     {
         for($i =0; $i <= 20; $i++) {
-            DB::connection('mysqlA')->table('table_A')->insert([
+            DB::table('table_A')->insert([
                 'name' => Str::random(10),
                 'note' => Str::random(20) . ' Note',
                 'price' => (new Number())->randomNumber(5),

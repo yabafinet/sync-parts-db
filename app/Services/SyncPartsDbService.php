@@ -4,9 +4,8 @@ namespace App\Services;
 
 use App\Services\Mutators\MutatorsBase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Storage;
 
 class SyncPartsDbService
 {
@@ -20,34 +19,42 @@ class SyncPartsDbService
     /**
      * Table structure A-B
      *
-     * @var
+     * @var array
      */
-    private $structures;
+    private array $structures;
 
     /**
      * Run de synchronize data base parts.
      *
-     * @return void
+     * @return array
      */
     public function run($path = null)
     {
         $this->loadConfigSyncFiles($path);
         $this->prepareStructures();
-        $rows = $this->syncData();
-
-        //dd($rows);
+        return $this->syncData();
     }
 
+    /**
+     * @return array
+     */
     public function syncData()
     {
         foreach ($this->configurations as $file_config => $config) {
-            $rows = $this->getRowsFrom($file_config, 'A');
-            $inserts = $this->insertRowsIn($file_config, 'B', $rows);
-            //print_r($rows);
+            $syncHandler = new SyncHandler($config['connections']['db-A']['table'], $config['connections']['db-B']['table']);
+            $last_sync_id = $syncHandler->getLastSyncId();
+            $rows = $this->getRowsFrom($file_config, 'A', $last_sync_id);
+            $last_insert_id = $this->insertRowsIn($file_config, 'B', $rows);
+            if ($last_insert_id) {
+                $syncHandler->setLastSyncId($last_insert_id);
+            }
         }
 
-        return $rows;
-        //dd($rows);
+        return [
+            'init_sync_id'=> $last_sync_id,
+            'end_sync_id'=> $last_insert_id,
+            'rows'=> $rows,
+        ];
     }
 
     /**
@@ -57,12 +64,13 @@ class SyncPartsDbService
      * @param string $from
      * @return Collection
      */
-    private function getRowsFrom($file_config, string $from = 'A')
+    private function getRowsFrom($file_config, string $from = 'A', $last_id = null)
     {
-        $config_a = explode(':', $this->configurations[$file_config]['connections']['db-' . $from]);
-        $query = DB::connection($config_a[0])->table($config_a[1]);
+        $config_key = $this->getConfigKey($from);
+        $config = $this->getConnectionsConfig($file_config, $from);
+        Config::set('database.connections.' . $config_key, $config);
+        $query = DB::connection($config_key)->table($config['table']);
 
-        //dd($this->structures);
         foreach ($this->configurations[$file_config]['structure'] as $fieldA => $fielB) {
             if ($fielB instanceof MutatorsBase) {
                 $fielB = $fielB->name;
@@ -70,7 +78,7 @@ class SyncPartsDbService
             $query = $query->addSelect([$fieldA . ' AS ' . $fielB]);
             //dd([$fieldA . ' AS ' . $fielB]);
         }
-        return $query->get();
+        return $query->where('id', '>', $last_id)->get();
     }
 
     /**
@@ -79,22 +87,29 @@ class SyncPartsDbService
      * @param        $file_config
      * @param string $from
      * @param        $rows
-     * @return Collection
+     * @return bool
      */
     private function insertRowsIn($file_config, string $from, $rows)
     {
-        $config_a = explode(':', $this->configurations[$file_config]['connections']['db-' . $from]);
+        $config_key = $this->getConfigKey($from);
+        $config_a = $this->getConnectionsConfig($file_config, $from);
         $rows_insert = array();
+        $last_id = 0;
         foreach ($rows as $value) {
             $rows_insert[] = (array) $value;
+            $last_id = $value->id;
         }
-        dd($rows_insert);
+        //dd($rows_insert);
         //$rows = (array) $rows;
+        Config::set('database.connections.' . $config_key, $config_a);
+        DB::connection($config_key)->table($config_a['table'])->insert($rows_insert);
 
-        DB::connection($config_a[0])->table($config_a[1])->insert($rows_insert);
+        return $last_id;
     }
 
     /**
+     * Prepare structure array table A (select) and table B (insert).
+     *
      * @return void
      */
     private function prepareStructures()
@@ -130,5 +145,24 @@ class SyncPartsDbService
             $config_name = str_replace($path. '/', '', $filename);
             $this->configurations[$config_name] = $config;
         }
+    }
+
+    /**
+     * @param $file_config
+     * @param string $from
+     * @return mixed
+     */
+    private function getConnectionsConfig($file_config, string $from): mixed
+    {
+        return $this->configurations[$file_config]['connections']['db-' . $from];
+    }
+
+    /**
+     * @param string $from
+     * @return string
+     */
+    private function getConfigKey(string $from): string
+    {
+        return 'sync-parts-' . $from;
     }
 }
