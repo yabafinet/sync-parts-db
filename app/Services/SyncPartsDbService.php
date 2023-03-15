@@ -103,6 +103,7 @@ class SyncPartsDbService
      *
      * @param        $file_config
      * @param string $from
+     * @param null   $last_id
      * @return Collection
      */
     private function getRowsFrom($file_config, string $from = 'A', $last_id = null)
