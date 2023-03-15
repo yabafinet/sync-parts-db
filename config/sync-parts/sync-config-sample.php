@@ -4,7 +4,8 @@ use App\Services\Mutators\Number;
 
 return [
     'type' => 'sync-tables',
-    'name' => 'Sync sales samples.',
+    'key' => 'sync-tables-samples',
+    'description' => 'Table-A synchronization test with Table-B.',
     'connections' =>[
         'db-A' => [
             'driver' => 'mysql',
@@ -13,7 +14,7 @@ return [
             'database' => 'sync-parts-db-A',
             'table' => 'table_A',
             'username' => 'root',
-            'password' => 'lared2001',
+            'password' => '123456',
         ],
         'db-B' => [
             'driver' => 'mysql',
@@ -22,15 +23,16 @@ return [
             'database' => 'sync-parts-db-B',
             'table' => 'table_B',
             'username' => 'root',
-            'password' => 'lared2001',
+            'password' => '123456',
         ],
     ],
 
     /**
      * db-A (select) => db-B (insert)
+     *  The first field(id) of table A is the synchronization reference point.
      */
     'structure' => [
-        'id' => 'id',
+        'id' => 'id_b',
         'name' => 'name_b',
         'note' => 'note_b',
         'price' => 'price_b',

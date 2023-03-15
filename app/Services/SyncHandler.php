@@ -16,8 +16,16 @@ class SyncHandler
      */
     private string $table_b;
 
-    public function __construct($table_a, $table_b)
+    /**
+     * Key configuration.
+     *
+     * @var string
+     */
+    private $key = '';
+
+    public function __construct($key, $table_a, $table_b)
     {
+        $this->key = $key;
         $this->table_a = $table_a;
         $this->table_b = $table_b;
     }
@@ -48,6 +56,7 @@ class SyncHandler
     {
         DB::table('sync_point')
             ->insert([
+               'key' => $this->key,
                'table_a' => $this->table_a,
                'table_b' => $this->table_b,
                'last_sync' => $id ?? '00',

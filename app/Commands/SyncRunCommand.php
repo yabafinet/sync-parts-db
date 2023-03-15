@@ -6,21 +6,21 @@ use App\Services\SyncPartsDbService;
 use Illuminate\Console\Scheduling\Schedule;
 use LaravelZero\Framework\Commands\Command;
 
-class SyncNowCommand extends Command
+class SyncRunCommand extends Command
 {
     /**
      * The signature of the command.
      *
      * @var string
      */
-    protected $signature = 'sync:now {--path=}';
+    protected $signature = 'sync:{action} {--limit=}';
 
     /**
      * The description of the command.
      *
      * @var string
      */
-    protected $description = 'Run synchronize now';
+    protected $description = 'Start all syncs configs.';
 
     /**
      * Execute the console command.
@@ -29,10 +29,11 @@ class SyncNowCommand extends Command
      */
     public function handle()
     {
-        $sync = new SyncPartsDbService();
-        $sync->setCommand($this);
-        $path = $this->option('path');
-        $result = $sync->run($path);
+        $path = $this->option('limit');
+        $action = $this->argument('action');
+        if ($action == 'status') {
+            $this->info('status run...');
+        }
     }
 
     /**
