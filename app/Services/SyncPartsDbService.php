@@ -15,14 +15,14 @@ class SyncPartsDbService
      *
      * @var int
      */
-    private $limit_laps = 3;
+    private int $limit_laps = 3;
 
     /**
      * Interval of seconds between each lap that the synchronization would give in one minute.
      *
      * @var int
      */
-    private $interval_laps = 15;
+    private int $interval_laps = 15;
     /**
      * Configurations files for synchronize db.
      *
@@ -40,9 +40,7 @@ class SyncPartsDbService
     /**
      * @var Command
      */
-    private $command;
-
-    private SyncProcessRunHandle $processRunHandle;
+    private Command $command;
 
     /**
      * Run de synchronize data base parts.
@@ -64,8 +62,8 @@ class SyncPartsDbService
         $result = array();
         foreach ($this->configurations as $file_config => $config) {
             $key = $this->getKey($file_config);
-            $this->processRunHandle = new SyncProcessRunHandle($key);
-            $this->processRunHandle->start($file_config);
+            $processRunHandle = new SyncProcessRunHandle($key);
+            $processRunHandle->start($file_config);
 
             $syncHandler = new SyncHandler($key, $config['connections']['db-A']['table'], $config['connections']['db-B']['table']);
             $last_sync_id = $syncHandler->getLastSyncId();
@@ -75,13 +73,13 @@ class SyncPartsDbService
                 $syncHandler->setLastSyncId($last_insert_id);
             }
 
-            $this->processRunHandle->finish($file_config, [
+            $processRunHandle->finish($file_config, [
                 'init_sync_id'=> $last_sync_id,
                 'end_sync_id'=> $last_insert_id
             ]);
 
             sleep($this->interval_laps);
-            $this->processRunHandle->wait($file_config);
+            $processRunHandle->wait($file_config);
             $result = [
                 'init_sync_id'=> $last_sync_id,
                 'end_sync_id'=> $last_insert_id,
