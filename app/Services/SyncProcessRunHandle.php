@@ -20,84 +20,126 @@ class SyncProcessRunHandle
     /**
      * @var mixed
      */
-    private mixed $last_time_status;
+    public mixed $last_time_status;
 
     /**
      * @var mixed
      */
-    private mixed $last_status;
+    public mixed $last_status;
 
-    public function __construct($key)
+    /**
+     * @var string
+     */
+    private $file = '';
+
+    /**
+     * @var SyncPartsDbService
+     */
+    private SyncPartsDbService $syncPertsService;
+
+
+    /**
+     * Last send status from system.
+     *
+     * @var mixed
+     */
+    public mixed $last_system_status;
+
+    public function __construct($key, $file, SyncPartsDbService $syncPartsDbService)
     {
-        $this->key = $key;
+        $this->key = $key ?? $syncPartsDbService->getKey($file);
+        $this->last_time_status = now()->format('Y-m-d H:i:s');
+        $this->last_status = SyncStatus::FINISH;
+        $this->last_system_status = SyncStatus::START;
+        $this->file = $file;
+        $this->syncPertsService = $syncPartsDbService;
     }
 
     /**
-     * @param       $file
      * @param array $data
      * @return void
      */
-    public function start($file, $data = array())
+    public function start(array $data = array())
     {
-        if ($this->getLastStatus() == SyncStatus::STOP) {
-            exit(1);
+        if ($this->getLastSystemStatus() == SyncStatus::STOP) {
+            $this->syncPertsService->command->error('exit status :' . $this->last_system_status . "");
+            exit();
         }
+        $last_status = $this->getLastStatus();
         $elapsed_seconds = DateTimeHelper::diffInSeconds($this->last_time_status);
-        if ($this->last_status == SyncStatus::WAIT && $elapsed_seconds < 10) {
-            exit( $this->last_status . " (elapsed_seconds): " . $elapsed_seconds );
+        if ($last_status == SyncStatus::WAIT && ($elapsed_seconds < $this->syncPertsService->interval_laps && $this->syncPertsService->getLaps() ==1 )) {
+            $this->syncPertsService->command->error(
+                "\n\nexit : " . $this->last_status
+                . "\nelapsed_seconds : " . $elapsed_seconds
+                . "\nelaps :" . $this->syncPertsService->getLaps()
+                . "\nlast_time_status : " . $this->last_time_status
+            );
+            exit();
         }
         $data = $data ?? array();
-        $this->insertNewProcess(SyncStatus::START, $file, $data, $this->last_process_id);
+        $this->insertNewProcess(SyncStatus::START, $data, $this->last_process_id);
     }
 
     /**
-     * @param       $file
      * @param array $data
      * @return void
      */
-    public function wait($file, $data = array())
+    public function wait(array $data = array())
     {
         $data = $data ?? array();
-        $this->insertNewProcess(SyncStatus::WAIT, $file, $data, $this->last_process_id);
+        $this->insertNewProcess(SyncStatus::WAIT, $data, $this->last_process_id);
     }
 
     /**
-     * @param       $file
+     * Send command start from system.
+     *
      * @param array $data
      * @return void
      */
-    public function stop($file, $data = array())
+    public function sendStart(array $data = array())
     {
         $data = $data ?? array();
-        $this->insertNewProcess(SyncStatus::STOP, $file, $data, $this->last_process_id);
+        $this->insertNewProcess(SyncStatus::START, $data, $this->last_process_id, 2);
+        $this->syncPertsService->command->comment('Send Command Start...');
     }
 
     /**
-     * @param       $file
+     * Send command Stop from system.
+     *
      * @param array $data
      * @return void
      */
-    public function finish($file, $data = array())
+    public function stop(array $data = array())
     {
         $data = $data ?? array();
-        $this->insertNewProcess(SyncStatus::FINISH, $file, $data, $this->last_process_id);
+        $this->insertNewProcess(SyncStatus::STOP, $data, $this->last_process_id, 2);
     }
 
     /**
-     * @param $status
-     * @param $file
      * @param array $data
-     * @param $process_id
      * @return void
      */
-    private function insertNewProcess($status, $file, array $data = array(), $process_id = null)
+    public function finish(array $data = array())
+    {
+        $data = $data ?? array();
+        $this->insertNewProcess(SyncStatus::FINISH, $data, $this->last_process_id);
+    }
+
+    /**
+     * @param       $status
+     * @param array $data
+     * @param null  $process_id
+     * @return void
+     */
+    private function insertNewProcess($status, array $data = array(), $process_id = null, $type = 1)
     {
         $this->last_process_id = DB::table('sync_process_run')->insertGetId([
            'key' => $this->key,
            'status' => $status,
-           'config_file' => $file,
+           'config_file' => $this->file,
            'process_id' => $process_id,
            'data' => json_encode($data),
+           'type' => $type,
            'created_at' => now(),
            'updated_at' => now(),
         ]);
@@ -106,10 +148,12 @@ class SyncProcessRunHandle
     /**
      * @return string
      */
-    private function getLastStatus()
+    public function getLastStatus()
     {
         $last = DB::table('sync_process_run')
-            ->where('key', $this->key)->latest()->first(['status', 'created_at']);
+            ->where('key', $this->key)
+            ->where('type', 1)
+            ->orderByDesc('id')->first(['status', 'created_at']);
         if (!isset($last->status)) {
             return 'none';
         }
@@ -117,5 +161,40 @@ class SyncProcessRunHandle
         $this->last_time_status = $last->created_at;
 
         return $last->status;
+    }
+
+    /**
+     * @return string
+     */
+    private function getLastSystemStatus()
+    {
+        $last = DB::table('sync_process_run')
+            ->where('key', $this->key)
+            ->where('type', 2)
+            ->orderByDesc('id')->first(['status', 'created_at']);
+        if (!isset($last->status)) {
+            return 'none';
+        }
+
+        $this->last_system_status = $last->status;
+        //$this->last_time_status = $last->created_at;
+
+        return $last->status;
+    }
+
+    /**
+     * @return string
+     */
+    public function getKey(): mixed
+    {
+        return $this->key;
+    }
+
+    /**
+     * @return string
+     */
+    public function getConfigFile(): string
+    {
+        return $this->file;
     }
 }

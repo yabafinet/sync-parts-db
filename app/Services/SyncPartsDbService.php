@@ -12,17 +12,19 @@ class SyncPartsDbService
 {
     /**
      * Limit of turns that the synchronization would give in one minute.
+     *  If the value is 0 it runs forever.
      *
      * @var int
      */
-    private int $limit_laps = 10;
+    private int $limit_laps = 0;
 
     /**
      * Interval of seconds between each lap that the synchronization would give in one minute.
      *
      * @var int
      */
-    private int $interval_laps = 15;
+    public int $interval_laps = 15;
+
     /**
      * Configurations files for synchronize db.
      *
@@ -40,18 +42,25 @@ class SyncPartsDbService
     /**
      * @var Command
      */
-    private Command $command;
+    public Command $command;
+
+    /**
+     * @var int
+     */
+    private int $laps = 1;
 
     /**
      * Run de synchronize data base parts.
      *
-     * @return array
+     * @return SyncPartsDbService
      */
     public function run($path = null)
     {
         $this->loadConfigSyncFiles($path);
         $this->prepareStructures();
-        return $this->syncData();
+        $this->syncData();
+
+        return $this;
     }
 
     /**
@@ -60,10 +69,12 @@ class SyncPartsDbService
     public function syncData($laps = 1)
     {
         $result = array();
+        $this->setLaps($laps);
+
         foreach ($this->configurations as $file_config => $config) {
             $key = $this->getKey($file_config);
-            $processRunHandle = new SyncProcessRunHandle($key);
-            $processRunHandle->start($file_config);
+            $processRunHandle = new SyncProcessRunHandle($key, $file_config, $this);
+            $processRunHandle->start();
 
             $syncHandler = new SyncHandler($key, $config['connections']['db-A']['table'], $config['connections']['db-B']['table']);
             $last_sync_id = $syncHandler->getLastSyncId();
@@ -73,24 +84,24 @@ class SyncPartsDbService
                 $syncHandler->setLastSyncId($last_insert_id);
             }
 
-            $processRunHandle->finish($file_config, [
-                'init_sync_id'=> $last_sync_id,
-                'end_sync_id'=> $last_insert_id
-            ]);
-
-            sleep($this->interval_laps);
-            $processRunHandle->wait($file_config);
             $result = [
                 'init_sync_id'=> $last_sync_id,
                 'end_sync_id'=> $last_insert_id,
-                'rows'=> $rows,
+                //'rows'=> $rows,
             ];
 
-            $this->command->info('Sync Init Id   : ' . $result['init_sync_id']);
-            $this->command->info('Sync End Id    : ' . $result['end_sync_id']);
-            $this->command->info('Sync complete!');
+            $processRunHandle->finish($result);
 
-            if ($laps <= $this->limit_laps) {
+            $this->command->info('Sync complete:');
+            $this->command->info('  Last Status         : ' . $processRunHandle->last_status);
+            $this->command->info('  Last Status (system): ' . $processRunHandle->last_system_status);
+            $this->command->info('  Sync Init Id        : ' . $result['init_sync_id']);
+            $this->command->info('  Sync End Id         : ' . $result['end_sync_id']);
+            $this->command->info('  Laps Number         : ' . $laps);
+            $processRunHandle->wait();
+            sleep($this->interval_laps);
+
+            if ($laps <= $this->limit_laps || $this->limit_laps ==0) {
                 return $this->syncData($laps +1);
             }
         }
@@ -183,7 +194,7 @@ class SyncPartsDbService
      * Load configs files configurations data base sync.
      *
      * @param $path
-     * @return void
+     * @return SyncPartsDbService
      */
     public function loadConfigSyncFiles($path = null)
     {
@@ -193,6 +204,8 @@ class SyncPartsDbService
         $this->command->info('Load configs in: ' . $path);
 
         $this->extractedConfigFile($path, $path);
+
+        return $this;
     }
 
     /**
@@ -209,7 +222,7 @@ class SyncPartsDbService
      * @param $file_config
      * @return mixed
      */
-    private function getKey($file_config): mixed
+    public function getKey($file_config): mixed
     {
         return $this->configurations[$file_config]['key'];
     }
@@ -236,10 +249,12 @@ class SyncPartsDbService
 
     /**
      * @param Command $command
+     * @return SyncPartsDbService
      */
-    public function setCommand(Command $command): void
+    public function setCommand(Command $command): SyncPartsDbService
     {
         $this->command = $command;
+        return $this;
     }
 
     /**
@@ -252,5 +267,21 @@ class SyncPartsDbService
         $config = include $filename;
         $config_name = str_replace($path . '/', '', $filename);
         $this->configurations[$config_name] = $config;
+    }
+
+    /**
+     * @param int $laps
+     */
+    public function setLaps(int $laps): void
+    {
+        $this->laps = $laps;
+    }
+
+    /**
+     * @return int
+     */
+    public function getLaps(): int
+    {
+        return $this->laps;
     }
 }
