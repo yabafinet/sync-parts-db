@@ -15,7 +15,7 @@ class SyncPartsDbService
      *
      * @var int
      */
-    private int $limit_laps = 3;
+    private int $limit_laps = 10;
 
     /**
      * Interval of seconds between each lap that the synchronization would give in one minute.
@@ -192,13 +192,7 @@ class SyncPartsDbService
 
         $this->command->info('Load configs in: ' . $path);
 
-        if (is_dir($path)) {
-            foreach (glob($path . "/*.php") as $filename) {
-                $this->extractedConfigFile($filename, $path);
-            }
-        } else {
-            $this->extractedConfigFile($path, $path);
-        }
+        $this->extractedConfigFile($path, $path);
     }
 
     /**

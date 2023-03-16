@@ -4,7 +4,7 @@ use App\Services\Mutators\Number;
 
 return [
     'type' => 'sync-tables',
-    'key' => 'sync-tables-samples',
+    'key' => 'sync-tables-samples2',
     'description' => 'Table-A synchronization test with Table-B.',
     'connections' =>[
         'db-A' => [
