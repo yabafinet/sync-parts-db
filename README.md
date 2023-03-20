@@ -23,10 +23,15 @@ php application sync run {dir}
 
 ```bash
 # Run specific file configuration:
-php application sync:now start {path/file.php}
+php application sync:now --laps=0 {path/file.php}
 ```
 
 ```bash
 # Check synchronization status:
-php application sync:now status {dir}
+php application sync status {dir}
+```
+
+```bash
+# Stop specific sync configuration:
+php application sync stop {path/file.php}
 ```

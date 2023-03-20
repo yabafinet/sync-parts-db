@@ -1,11 +1,12 @@
 <?php
 
 use App\Services\Mutators\Number;
+use App\Services\Mutators\TimeNow;
 
 return [
-    'type' => 'sync-tables',
-    'key' => 'sync-tables-samples2',
-    'description' => 'Table-A synchronization test with Table-B.',
+    'type' => 'sync-tables-update',
+    'key' => 'sync-tables-update-example',
+    'description' => 'Table-A update rows test with Table-B.',
     'connections' =>[
         'db-A' => [
             'driver' => 'mysql',
@@ -26,9 +27,24 @@ return [
             'password' => '123456',
         ],
     ],
+    /**
+     * Update if fields in table B are identical.
+     */
+    'update_if_identical' => [
+        'lottery_id' => 'product_id',
+        'play_type' => 'type',
+    ],
 
     /**
-     * db-A (select) => db-B (insert)
+     * Update if fields in table B are not identical.
+     */
+    'update_if_not_identical' => [
+        'lottery_id' => 'product_id',
+        'play_type' => 'type',
+    ],
+
+    /**
+     * db-A (select) => db-B (UPDATE)
      *  The first field(id) of table A is the synchronization reference point.
      */
     'structure' => [
@@ -40,6 +56,6 @@ return [
         'type' => 'type_b',
         'status' => 'status_b',
         'created_at' => 'created_at',
-        'updated_at' => 'updated_at',
+        'updated_at' => TimeNow::make('updated_at'),
     ]
 ];

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Services\Mutators\MutatorsBase;
+use App\Services\Mutators\TimeNow;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +43,7 @@ class SyncPartsDbService
     /**
      * @var Command
      */
-    public Command $command;
+    public $command;
 
     /**
      * @var int
@@ -91,17 +92,23 @@ class SyncPartsDbService
             ];
 
             $processRunHandle->finish($result);
-
-            $this->command->info('Sync complete:');
-            $this->command->info('  Last Status         : ' . $processRunHandle->last_status);
-            $this->command->info('  Last Status (system): ' . $processRunHandle->last_system_status);
-            $this->command->info('  Sync Init Id        : ' . $result['init_sync_id']);
-            $this->command->info('  Sync End Id         : ' . $result['end_sync_id']);
-            $this->command->info('  Laps Number         : ' . $laps);
+            if ($this->isConsole()) {
+                $this->command->info('Sync complete:');
+                $this->command->info('  Last Status         : ' . $processRunHandle->last_status);
+                $this->command->info('  Last Status (system): ' . $processRunHandle->last_system_status);
+                $this->command->info('  Sync Init Id        : ' . $result['init_sync_id']);
+                $this->command->info('  Sync End Id         : ' . $result['end_sync_id']);
+                $this->command->info('  Laps Number         : ' . $laps);
+            }
             $processRunHandle->wait();
+
+            if ($laps == $this->limit_laps) {
+                return;
+            }
+
             sleep($this->interval_laps);
 
-            if ($laps <= $this->limit_laps || $this->limit_laps ==0) {
+            if ($this->limit_laps == 0) {
                 return $this->syncData($laps +1);
             }
         }
@@ -117,18 +124,23 @@ class SyncPartsDbService
      * @param null   $last_id
      * @return Collection
      */
-    private function getRowsFrom($file_config, string $from = 'A', $last_id = null)
+    public function getRowsFrom($file_config, string $from = 'A', $last_id = null)
     {
         $config_key = $this->getConfigKey($from);
         $config = $this->getConnectionsConfig($file_config, $from);
         Config::set('database.connections.' . $config_key, $config);
         $query = DB::connection($config_key)->table($config['table']);
 
-        foreach ($this->configurations[$file_config]['structure'] as $fieldA => $fielB) {
-            if ($fielB instanceof MutatorsBase) {
-                $fielB = $fielB->name;
+        foreach ($this->configurations[$file_config]['structure'] as $fieldA => $fieldB) {
+            if ($fieldB instanceof MutatorsBase) {
+                $fieldB = $fieldB->name;
             }
-            $query = $query->addSelect([$fieldA . ' AS ' . $fielB]);
+
+            if ($from == 'A') {
+                $query = $query->addSelect([$fieldA . ' AS ' . $fieldB]);
+            } else {
+                $query = $query->addSelect([$fieldB . ' AS ' . $fieldA]);
+            }
             //dd([$fieldA . ' AS ' . $fielB]);
         }
         if (!$last_id) {
@@ -201,7 +213,9 @@ class SyncPartsDbService
         $path = $path ?? '/config/sync-parts';
         //$path = '/' . $path;
 
-        $this->command->info('Load configs in: ' . $path);
+        if ($this->isConsole()) {
+            $this->command->info('Load configs in: ' . $path);
+        }
 
         $this->extractedConfigFile($path, $path);
 
@@ -248,12 +262,12 @@ class SyncPartsDbService
     }
 
     /**
-     * @param Command $command
+     * @param null $command
      * @return SyncPartsDbService
      */
-    public function setCommand(Command $command): SyncPartsDbService
+    public function setCommand($command = null): SyncPartsDbService
     {
-        $this->command = $command;
+        $this->command = $command ?? new \Illuminate\Console\Command();
         return $this;
     }
 
@@ -283,5 +297,18 @@ class SyncPartsDbService
     public function getLaps(): int
     {
         return $this->laps;
+    }
+
+    private function isConsole()
+    {
+        return $this->command;
+    }
+
+    /**
+     * @param int $limit_laps
+     */
+    public function setLimitLaps(int $limit_laps): void
+    {
+        $this->limit_laps = $limit_laps;
     }
 }

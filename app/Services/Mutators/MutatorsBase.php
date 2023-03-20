@@ -7,7 +7,7 @@ class MutatorsBase
     public $name;
     public $value;
 
-    public static function turn($name, $value = null)
+    public static function make($name, $value = null)
     {
         $self = new self();
         $self->name = $name;

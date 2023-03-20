@@ -13,7 +13,7 @@ class SyncNowCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'sync:now {--path=}';
+    protected $signature = 'sync:now {--path=}{--laps=0}';
 
     /**
      * The description of the command.
@@ -32,6 +32,11 @@ class SyncNowCommand extends Command
         $sync = new SyncPartsDbService();
         $sync->setCommand($this);
         $path = $this->option('path');
+        $limit_laps = (int) $this->option('laps');
+        if ($limit_laps >0) {
+            $sync->setLimitLaps($limit_laps);
+        }
+
         $result = $sync->run($path);
     }
 
